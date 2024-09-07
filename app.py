@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for
 import subprocess
 import os
 
@@ -13,7 +13,7 @@ def index():
 def scan():
     target_url = request.form['target_url']
     output_folder = create_output_folder(target_url)
-
+    
     # Run the CLI commands (from your existing tool)
     try:
         run_whois(target_url, output_folder)
@@ -21,11 +21,16 @@ def scan():
         run_sublist3r(target_url, output_folder)
         run_wpscan(target_url, output_folder)
         run_nikto(target_url, output_folder)
+
         output_file = os.path.join(output_folder, f'output_of_{target_url}.txt')
 
-        # Read the output file and display it on the results page
-        with open(output_file, 'r') as f:
-            results = f.read()
+        # Check if the file exists
+        if os.path.exists(output_file):
+            with open(output_file, 'r') as f:
+                results = f.read()
+        else:
+            results = "No results found. The scan might not have completed successfully."
+
     except Exception as e:
         results = f"An error occurred: {str(e)}"
 
@@ -36,12 +41,13 @@ def scan_results(target_url):
     output_folder = os.path.join("output", target_url)
     output_file = os.path.join(output_folder, f'output_of_{target_url}.txt')
 
+    # Check if the file exists
     if os.path.exists(output_file):
         with open(output_file, 'r') as f:
             results = f.read()
         return render_template('results.html', results=results, target_url=target_url)
     else:
-        return f"No results found for {target_url}"
+        return render_template('results.html', results=f"No results found for {target_url}", target_url=target_url)
 
 def create_output_folder(target_url):
     output_folder = "output"
