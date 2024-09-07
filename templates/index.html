@@ -8,7 +8,7 @@
 </head>
 <body class="bg-light">
     <div class="container mt-5">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <h1 class="card-title text-center">Web Security Tool</h1>
                 <form action="{{ url_for('scan') }}" method="POST">
@@ -22,6 +22,21 @@
                 </form>
             </div>
         </div>
+        {% if scanned_domains %}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h3 class="card-title">Previously Scanned Domains</h3>
+                <ul class="list-group">
+                    {% for domain in scanned_domains %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ domain }}
+                        <a href="{{ url_for('scan_results', target_url=domain) }}" class="btn btn-outline-secondary btn-sm">View Results</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </body>
 </html>
