@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanning {{ target_url }}</title>
+    <script>
+        function checkStatus() {
+            fetch('/scan_status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('status').textContent = data.step;
+                    if (data.complete) {
+                        document.getElementById('status').textContent = "Scan Complete!";
+                        clearInterval(statusInterval);
+                    }
+                });
+        }
+
+        const statusInterval = setInterval(checkStatus, 1000);
+    </script>
+</head>
+<body>
+    <h1>Scanning {{ target_url }}</h1>
+    <p id="status">Initializing...</p>
+</body>
+</html>

@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Security Scanner</title>
+    <title>Web Security Tool</title>
 </head>
 <body>
-    <h1>Web Security Scanner</h1>
-    <form action="{{ url_for('scan') }}" method="post">
+    <h1>Welcome to the Web Security Tool</h1>
+    <form action="{{ url_for('scan') }}" method="POST">
         <label for="target_url">Enter Target URL:</label>
         <input type="text" id="target_url" name="target_url" required>
         <button type="submit">Scan</button>
