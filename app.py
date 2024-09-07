@@ -1,87 +1,78 @@
-from flask import Flask, render_template, request, redirect, url_for
-import subprocess
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_socketio import SocketIO, emit
 import os
+from cli_tool import run_whois, run_nmap, run_sublist3r, run_wpscan, run_nikto, create_output_folder
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'fallback_default_key')  # Use an environment variable for the secret key
+socketio = SocketIO(app)
 
 @app.route('/')
 def index():
-    scanned_domains = get_scanned_domains()
-    return render_template('index.html', scanned_domains=scanned_domains)
+    return render_template('index.html')
 
 @app.route('/scan', methods=['POST'])
 def scan():
-    target_url = request.form['target_url']
-    output_folder = create_output_folder(target_url)
-    
-    # Run the CLI commands (from your existing tool)
-    try:
-        run_whois(target_url, output_folder)
-        run_nmap(target_url, output_folder)
-        run_sublist3r(target_url, output_folder)
-        run_wpscan(target_url, output_folder)
-        run_nikto(target_url, output_folder)
+    if request.method == 'POST':
+        target_url = request.form['target_url']
 
-        output_file = os.path.join(output_folder, f'output_of_{target_url}.txt')
+        if not target_url:
+            flash('Please enter a target URL.')
+            return redirect(url_for('index'))
 
-        # Check if the file exists
-        if os.path.exists(output_file):
-            with open(output_file, 'r') as f:
-                results = f.read()
-        else:
-            results = "No results found. The scan might not have completed successfully."
+        output_folder = create_output_folder(target_url)
 
-    except Exception as e:
-        results = f"An error occurred: {str(e)}"
+        try:
+            target_ip = os.popen(f"host {target_url} | grep 'has address' | awk '{{print $4}}'").read().strip()
 
-    return render_template('results.html', results=results, target_url=target_url)
+            # Emit progress to the client
+            emit_status("Starting scan for " + target_url)
 
-@app.route('/scan_results/<target_url>')
-def scan_results(target_url):
-    output_folder = os.path.join("output", target_url)
-    output_file = os.path.join(output_folder, f'output_of_{target_url}.txt')
+            # Step 1: WHOIS Scan
+            emit_status("Running Whois scan...")
+            whois_result = run_whois(target_url, output_folder)
+            emit_status("Whois scan completed.")
 
-    # Check if the file exists
-    if os.path.exists(output_file):
-        with open(output_file, 'r') as f:
-            results = f.read()
-        return render_template('results.html', results=results, target_url=target_url)
-    else:
-        return render_template('results.html', results=f"No results found for {target_url}", target_url=target_url)
+            # Step 2: Nmap Scan
+            emit_status("Running Nmap scan...")
+            nmap_result = run_nmap(target_ip, output_folder)
+            emit_status("Nmap scan completed.")
 
-def create_output_folder(target_url):
-    output_folder = "output"
-    target_folder = os.path.join(output_folder, target_url)
-    
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-    
-    if not os.path.exists(target_folder):
-        os.makedirs(target_folder)
+            # Step 3: Sublist3r Scan
+            emit_status("Running Sublist3r scan...")
+            sublist3r_result = run_sublist3r(target_url, output_folder)
+            emit_status("Sublist3r scan completed.")
 
-    return target_folder
+            # Step 4: WPScan
+            emit_status("Running WPScan...")
+            wpscan_result = run_wpscan(target_url, output_folder)
+            emit_status("WPScan completed.")
 
-def get_scanned_domains():
-    output_folder = "output"
-    if not os.path.exists(output_folder):
-        return []
-    return os.listdir(output_folder)
+            # Step 5: Nikto Scan
+            emit_status("Running Nikto scan...")
+            nikto_result = run_nikto(target_url, output_folder)
+            emit_status("Nikto scan completed.")
 
-# Placeholder functions for your existing CLI commands
-def run_whois(target_url, output_folder):
-    pass
+            # Combine all results into one
+            result = f"<h3>Whois Scan:</h3>{whois_result}"
+            result += f"<h3>Nmap Scan:</h3>{nmap_result}"
+            result += f"<h3>Sublist3r Scan:</h3>{sublist3r_result}"
+            result += f"<h3>WPScan:</h3>{wpscan_result}"
+            result += f"<h3>Nikto Scan:</h3>{nikto_result}"
 
-def run_nmap(target_url, output_folder):
-    pass
+            emit_status("All scans completed.")
 
-def run_sublist3r(target_url, output_folder):
-    pass
+            return render_template('results.html', target_url=target_url, output=result)
+        except Exception as e:
+            flash(f"Error occurred during scanning: {e}")
+            return redirect(url_for('index'))
 
-def run_wpscan(target_url, output_folder):
-    pass
+@socketio.on('connect')
+def handle_connect():
+    print("Client connected")
 
-def run_nikto(target_url, output_folder):
-    pass
+def emit_status(message):
+    socketio.emit('scan_progress', {'data': message})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    socketio.run(app, debug=True)

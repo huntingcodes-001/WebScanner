@@ -3,40 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Security Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Web Security Scanner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
 </head>
-<body class="bg-light">
-    <div class="container mt-5">
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h1 class="card-title text-center">Web Security Tool</h1>
-                <form action="{{ url_for('scan') }}" method="POST">
-                    <div class="mb-3">
-                        <label for="target_url" class="form-label">Enter Target URL:</label>
-                        <input type="text" class="form-control" id="target_url" name="target_url" placeholder="https://example.com" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Start Scan</button>
-                    </div>
-                </form>
+<body>
+    <div class="container">
+        <h1 class="mt-5 text-center">Web Security Scanner</h1>
+        <div class="card p-4 mt-4">
+            <form id="scan-form" action="/scan" method="POST" onsubmit="startScan()">
+                <div class="mb-3">
+                    <label for="target_url" class="form-label">Target URL:</label>
+                    <input type="text" id="target_url" name="target_url" class="form-control" placeholder="Enter domain (e.g., example.com)">
+                </div>
+                <button type="submit" class="btn btn-primary">Start Scan</button>
+            </form>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress mt-4" style="height: 30px; display: none;" id="progress-bar-container">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" role="progressbar" style="width: 0%;">
+                0%
             </div>
         </div>
-        {% if scanned_domains %}
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h3 class="card-title">Previously Scanned Domains</h3>
-                <ul class="list-group">
-                    {% for domain in scanned_domains %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ domain }}
-                        <a href="{{ url_for('scan_results', target_url=domain) }}" class="btn btn-outline-secondary btn-sm">View Results</a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-        {% endif %}
+
+        <!-- Real-time status update -->
+        <div class="mt-4" id="status"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.3.2/dist/socket.io.min.js"></script>
+        <script>
+            const socket = io();
+
+            function startScan() {
+                document.getElementById('progress-bar-container').style.display = 'block';
+                document.getElementById('status').innerHTML = '';
+                document.getElementById('progress-bar').style.width = '0%';
+                document.getElementById('progress-bar').innerHTML = '0%';
+            }
+
+            socket.on('scan_progress', function (msg) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.innerHTML += `<p>${msg.data}</p>`;
+                
+                // Increment progress bar (this example assumes each step adds a fixed amount)
+                let progressBar = document.getElementById('progress-bar');
+                let currentWidth = parseInt(progressBar.style.width) || 0;
+                let newWidth = Math.min(currentWidth + 20, 100);
+                progressBar.style.width = newWidth + '%';
+                progressBar.innerHTML = newWidth + '%';
+            });
+
+            socket.on('connect_error', function (err) {
+                console.error('Socket connection error:', err);
+            });
+        </script>
     </div>
 </body>
 </html>
