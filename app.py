@@ -1,67 +1,47 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import subprocess
 import os
-from threading import Thread
-import time
 
 app = Flask(__name__)
-scan_status = {
-    "status": "",
-    "step": "",
-    "complete": False,
-}
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    scanned_domains = get_scanned_domains()
+    return render_template('index.html', scanned_domains=scanned_domains)
 
 @app.route('/scan', methods=['POST'])
 def scan():
     target_url = request.form['target_url']
     output_folder = create_output_folder(target_url)
 
-    # Reset scan status
-    scan_status["status"] = "Started"
-    scan_status["step"] = "Initializing..."
-    scan_status["complete"] = False
-
-    # Run the scanning process in a separate thread
-    thread = Thread(target=perform_scan, args=(target_url, output_folder))
-    thread.start()
-
-    return render_template('scan.html', target_url=target_url)
-
-def perform_scan(target_url, output_folder):
+    # Run the CLI commands (from your existing tool)
     try:
-        update_status("Getting Domain Information ...")
         run_whois(target_url, output_folder)
-
-        update_status("Resolving IP Address ...")
-        target_ip = resolve_ip(target_url)
-
-        update_status("Scanning Ports ...")
-        run_nmap(target_ip, output_folder)
-
-        update_status("Finding Subdomains ...")
+        run_nmap(target_url, output_folder)
         run_sublist3r(target_url, output_folder)
-
-        update_status("Finding vulnerabilities with WPScan ...")
         run_wpscan(target_url, output_folder)
-
-        update_status("Finding vulnerabilities with Nikto ...")
         run_nikto(target_url, output_folder)
+        output_file = os.path.join(output_folder, f'output_of_{target_url}.txt')
 
-        update_status("Scan Complete", complete=True)
+        # Read the output file and display it on the results page
+        with open(output_file, 'r') as f:
+            results = f.read()
     except Exception as e:
-        update_status(f"An error occurred: {str(e)}", complete=True)
+        results = f"An error occurred: {str(e)}"
 
-def update_status(step, complete=False):
-    scan_status["step"] = step
-    scan_status["complete"] = complete
+    return render_template('results.html', results=results, target_url=target_url)
 
-@app.route('/scan_status')
-def get_scan_status():
-    return jsonify(scan_status)
+@app.route('/scan_results/<target_url>')
+def scan_results(target_url):
+    output_folder = os.path.join("output", target_url)
+    output_file = os.path.join(output_folder, f'output_of_{target_url}.txt')
+
+    if os.path.exists(output_file):
+        with open(output_file, 'r') as f:
+            results = f.read()
+        return render_template('results.html', results=results, target_url=target_url)
+    else:
+        return f"No results found for {target_url}"
 
 def create_output_folder(target_url):
     output_folder = "output"
@@ -75,42 +55,27 @@ def create_output_folder(target_url):
 
     return target_folder
 
-def append_to_file(file_path, content):
-    with open(file_path, 'a') as file:
-        file.write(content)
+def get_scanned_domains():
+    output_folder = "output"
+    if not os.path.exists(output_folder):
+        return []
+    return os.listdir(output_folder)
 
-def resolve_ip(target_url):
-    return os.popen(f"host {target_url} | grep 'has address' | awk '{{print $4}}'").read().strip()
-
+# Placeholder functions for your existing CLI commands
 def run_whois(target_url, output_folder):
-    whois_command = f"whois {target_url}"
-    whois_output = subprocess.run(whois_command, shell=True, capture_output=True, text=True).stdout
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), "\n\n\n######################\nDomain Information:\n######################\n\n")
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), whois_output)
+    pass
 
-def run_nmap(target_ip, output_folder):
-    nmap_command = f"nmap {target_ip}"
-    nmap_output = subprocess.run(nmap_command, shell=True, capture_output=True, text=True).stdout
-    append_to_file(os.path.join(output_folder, f'output_of_{target_ip}.txt'), "\n\n\n######################\nPort Information:\n######################\n\n")
-    append_to_file(os.path.join(output_folder, f'output_of_{target_ip}.txt'), nmap_output)
+def run_nmap(target_url, output_folder):
+    pass
 
 def run_sublist3r(target_url, output_folder):
-    sublist3r_command = f"python3 /opt/Sublist3r/sublist3r.py -d {target_url} -v"
-    sublist3r_output = subprocess.run(sublist3r_command, shell=True, capture_output=True, text=True).stdout
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), "\n\n\n######################\nSubdomain Information:\n######################\n\n")
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), sublist3r_output)
+    pass
 
 def run_wpscan(target_url, output_folder):
-    wpscan_command = f"wpscan --url {target_url}"
-    wpscan_output = subprocess.run(wpscan_command, shell=True, capture_output=True, text=True).stdout
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), "\n\n\n######################\nWPScan Vulnerability Information:\n######################\n\n")
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), wpscan_output)
+    pass
 
 def run_nikto(target_url, output_folder):
-    nikto_command = f"nikto -h {target_url} -Tuning 123bde -maxtime 1100"
-    nikto_output = subprocess.run(nikto_command, shell=True, capture_output=True, text=True).stdout
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), "\n\n\n######################\nNikto Vulnerability Information:\n######################\n\n")
-    append_to_file(os.path.join(output_folder, f'output_of_{target_url}.txt'), nikto_output)
+    pass
 
 if __name__ == '__main__':
     app.run(debug=True)
